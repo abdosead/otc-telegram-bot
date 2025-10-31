@@ -6,9 +6,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from flask import Flask, send_from_directory, request, jsonify
 from flask_cors import CORS
-from models.user import db
-from models.telegram_user import TelegramUser, db as telegram_user_db
-from models.deal import Deal, db as deal_db
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
 from routes.user import user_bp
 from routes.deals import deals_bp
 from routes.payments import payments_bp
@@ -34,18 +35,7 @@ os.makedirs(db_dir, exist_ok=True)
 app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(db_dir, 'app.db')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# تهيئة قواعد البيانات
-from models.dispute import db as dispute_db
 db.init_app(app)
-telegram_user_db.init_app(app)
-deal_db.init_app(app)
-dispute_db.init_app(app)
-
-with app.app_context():
-    db.create_all()
-    telegram_user_db.create_all()
-    deal_db.create_all()
-    dispute_db.create_all()
 
 # متغير البوت العام
 bot_instance = None
@@ -54,18 +44,21 @@ bot_instance = None
 @app.route('/api/deals', methods=['GET'])
 def get_deals():
     """الحصول على جميع الصفقات"""
+    from models.deal import Deal
     deals = Deal.query.all()
     return jsonify([deal.to_dict() for deal in deals])
 
 @app.route('/api/deals/<deal_id>', methods=['GET'])
 def get_deal(deal_id):
     """الحصول على صفقة محددة"""
+    from models.deal import Deal
     deal = Deal.query.get_or_404(deal_id)
     return jsonify(deal.to_dict())
 
 @app.route('/api/deals/<deal_id>/status', methods=['PUT'])
 def update_deal_status(deal_id):
     """تحديث حالة الصفقة"""
+    from models.deal import Deal
     deal = Deal.query.get_or_404(deal_id)
     data = request.get_json()
     
@@ -76,7 +69,7 @@ def update_deal_status(deal_id):
         if 'payment_id' in data:
             deal.payment_id = data['payment_id']
         
-        deal_db.session.commit()
+        db.session.commit()
         return jsonify(deal.to_dict())
     
     return jsonify({'error': 'Status is required'}), 400
@@ -84,6 +77,7 @@ def update_deal_status(deal_id):
 @app.route('/api/users', methods=['GET'])
 def get_users():
     """الحصول على جميع المستخدمين"""
+    from models.telegram_user import TelegramUser
     users = TelegramUser.query.all()
     return jsonify([user.to_dict() for user in users])
 
@@ -150,4 +144,11 @@ def serve(path):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    if '--init-db' in sys.argv:
+        with app.app_context():
+            print("Creating database tables...")
+            db.create_all()
+            print("Database tables created successfully!")
+    else:
+        app.run(host='0.0.0.0', port=5000, debug=True)
+
