@@ -1,7 +1,5 @@
 from datetime import datetime
-from flask_sqlalchemy import SQLAlchemy
-
-db = SQLAlchemy()
+from src.main import db
 
 class Dispute(db.Model):
     """نموذج النزاعات"""
@@ -191,4 +189,3 @@ class UserBan(db.Model):
             'lifted_at': self.lifted_at.isoformat() if self.lifted_at else None,
             'lift_reason': self.lift_reason
         }
-
